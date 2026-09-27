@@ -135,15 +135,14 @@
   <script src="html5-qrcode.min.js"></script>
   <script>
     const $ = (id) => document.getElementById(id);
-    const scanner = new Html5Qrcode("reader");
+    const scanner = new Html5Qrcode("reader", {
+      formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+      useBarCodeDetectorIfSupported: true,
+    });
     let scanning = false;
 
     const CONFIG = {
-      fps: 10,
-      qrbox: (w, h) => {
-        const s = Math.floor(Math.min(w, h) * 0.8);
-        return { width: s, height: s };
-      },
+      fps: 15,
     };
 
     function setStatus(t) {
