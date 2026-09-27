@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QR Scanner</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    body {
+      background: #0b0f19;
+      color: #e5e9f2;
+      font-family: system-ui, sans-serif;
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    main {
+      width: 100%;
+      max-width: 420px;
+      padding: 24px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    h1 {
+      font-size: 1.2rem;
+      text-align: center;
+    }
+
+    #reader {
+      aspect-ratio: 1;
+      background: #000;
+      border: 1px solid #26304a;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    #reader video {
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover !important;
+    }
+
+    #status,
+    #error {
+      font-size: 0.85rem;
+      text-align: center;
+      color: #8b96b0;
+    }
+
+    #error {
+      color: #ff6b7a;
+    }
+
+    .controls {
+      display: flex;
+      justify-content: center;
+    }
+
+    button {
+      background: #2f6bff;
+      color: #fff;
+      border: 0;
+      border-radius: 8px;
+      padding: 11px 24px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #4a80ff;
+    }
+
+    #result {
+      background: #141a2b;
+      border: 1px solid #26304a;
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    #text {
+      font-family: monospace;
+      font-size: 0.9rem;
+      word-break: break-all;
+      white-space: pre-wrap;
+    }
+
+    #copy {
+      align-self: flex-end;
+      background: transparent;
+      border: 1px solid #26304a;
+      padding: 7px 16px;
+      font-size: 0.85rem;
+    }
+
+    #copy:hover {
+      background: #1b2340;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>QR Scanner</h1>
+
+    <div id="reader"></div>
+
+    <p id="status">Ready.</p>
+    <p id="error" hidden></p>
+
+    <div class="controls">
+      <button id="toggle">Start Scan</button>
+    </div>
+
+    <div id="result" hidden>
+      <p id="text"></p>
+      <button id="copy">Copy</button>
+    </div>
+  </main>
+
+  <script src="html5-qrcode.min.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const scanner = new Html5Qrcode("reader");
+    let scanning = false;
+
+    const CONFIG = {
+      fps: 10,
+      qrbox: (w, h) => {
+        const s = Math.floor(Math.min(w, h) * 0.8);
+        return { width: s, height: s };
+      },
+    };
+
+    function setStatus(t) {
+      $("status").textContent = t;
+    }
+
+    function setError(t) {
+      $("error").textContent = t;
+      $("error").hidden = !t;
+    }
+
+    function friendly(err) {
+      const msg = String(err?.message || err);
+      if (!navigator.mediaDevices?.getUserMedia || location.protocol === "file:") {
+        return "Camera is blocked on file://. Run: python3 -m http.server 8000 then open http://localhost:8000";
+      }
+      if (err?.name === "NotAllowedError" || /NotAllowedError|Permission denied/i.test(msg)) {
+        return "Camera permission denied.";
+      }
+      if (err?.name === "NotFoundError" || /NotFoundError|No Cameras|No video/i.test(msg)) {
+        return "Camera not found.";
+      }
+      return "Failed: " + msg;
+    }
+
+    async function start() {
+      setError("");
+      setStatus("Starting camera...");
+      try {
+        await scanner.start({ facingMode: "environment" }, CONFIG, onScan, () => {});
+        scanning = true;
+        $("toggle").textContent = "Stop";
+        setStatus("Point the camera at a QR code...");
+      } catch (err) {
+        setStatus("");
+        setError(friendly(err));
+      }
+    }
+
+    async function stop() {
+      if (scanning) await scanner.stop().catch(() => {});
+      scanning = false;
+      $("toggle").textContent = "Start Scan";
+      setStatus("Stopped.");
+    }
+
+    function onScan(text) {
+      $("text").textContent = text;
+      $("result").hidden = false;
+      setStatus("Detected!");
+    }
+
+    $("toggle").onclick = () => (scanning ? stop() : start());
+
+    $("copy").onclick = async () => {
+      const t = $("text").textContent;
+      try {
+        await navigator.clipboard.writeText(t);
+      } catch {
+        const ta = document.createElement("textarea");
+        ta.value = t;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        ta.remove();
+      }
+      $("copy").textContent = "Copied!";
+      setTimeout(() => ($("copy").textContent = "Copy"), 1500);
+    };
+
+    window.addEventListener("pagehide", () => scanning && scanner.stop().catch(() => {}));
+  </script>
+</body>
+</html>
